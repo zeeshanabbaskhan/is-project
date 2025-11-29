@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Upload as UploadIcon, FileText, X, Shield, AlertTriangle, CheckCircle, Hash } from 'lucide-react'
+import { Upload as UploadIcon, FileText, X, Shield, AlertTriangle, CheckCircle, Hash, Cloud, Sparkles, Lock, Zap, FileImage, FileVideo, FileAudio, FileArchive, File } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -12,6 +12,7 @@ export const UploadPage = () => {
     const [files, setFiles] = useState([])
     const [uploading, setUploading] = useState(false)
     const [encryptionEnabled, setEncryptionEnabled] = useState(true)
+    const [isDragging, setIsDragging] = useState(false)
     const toast = useToast()
     const navigate = useNavigate()
 
@@ -54,12 +55,19 @@ export const UploadPage = () => {
 
     const onDrop = useCallback((e) => {
         e.preventDefault()
+        setIsDragging(false)
         const droppedFiles = Array.from(e.dataTransfer.files)
         processFiles(droppedFiles)
     }, [processFiles])
 
     const onDragOver = (e) => {
         e.preventDefault()
+        setIsDragging(true)
+    }
+
+    const onDragLeave = (e) => {
+        e.preventDefault()
+        setIsDragging(false)
     }
 
     const handleFileSelect = (e) => {
@@ -104,20 +112,13 @@ export const UploadPage = () => {
                     f.id === fileItem.id ? { ...f, status: 'uploading' } : f
                 ))
 
-                // In a real app, we would encrypt the file content here
-                // For now, we just send metadata to our backend
-                await fileApi.upload({
-                    originalName: fileItem.name,
-                    mimeType: fileItem.type || 'application/octet-stream',
-                    size: fileItem.size,
-                    category: fileItem.category,
-                    encryption: {
-                        algorithm: encryptionEnabled ? 'AES-256-GCM' : 'None',
-                        iv: 'mock-iv', // In real app, generate random IV
-                        authTag: 'mock-tag'
-                    },
-                    storageKey: `mock-s3-key-${Date.now()}` // In real app, get from S3 upload
-                })
+                // Create FormData for actual file upload
+                const formData = new FormData()
+                formData.append('file', fileItem.file)
+                formData.append('category', fileItem.category)
+                formData.append('isConfidential', fileItem.isSensitive ? 'true' : 'false')
+
+                await fileApi.upload(formData)
 
                 setFiles(prev => prev.map(f =>
                     f.id === fileItem.id ? { ...f, status: 'completed', progress: 100 } : f
@@ -131,44 +132,79 @@ export const UploadPage = () => {
 
         } catch (error) {
             console.error('Upload failed:', error)
-            toast.error('Failed to upload files')
+            toast.error(error.response?.data?.message || 'Failed to upload files')
         } finally {
             setUploading(false)
         }
     }
 
+    const completedCount = files.filter(f => f.status === 'completed').length
+    const totalSize = files.reduce((acc, f) => acc + f.size, 0)
+
     return (
-        <div className="min-h-screen bg-background">
-            <div className="container mx-auto p-6 max-w-4xl space-y-6">
-                <div>
-                    <h1 className="text-3xl font-bold mb-2">Upload Files</h1>
-                    <p className="text-muted-foreground">
-                        Securely upload and encrypt your files
+        <div className="min-h-screen bg-linear-to-br from-primary/5 via-background to-secondary/5">
+            {/* Animated background */}
+            <div className="fixed inset-0 overflow-hidden pointer-events-none">
+                <div className="absolute top-20 right-20 w-72 h-72 bg-primary/5 rounded-full blur-3xl animate-pulse"></div>
+                <div className="absolute bottom-20 left-20 w-96 h-96 bg-secondary/5 rounded-full blur-3xl animate-pulse delay-1000"></div>
+            </div>
+
+            <div className="container mx-auto p-6 max-w-4xl space-y-6 relative">
+                {/* Header */}
+                <div className="text-center py-6">
+                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 rounded-full text-primary text-sm font-medium mb-4">
+                        <Sparkles className="w-4 h-4" />
+                        Secure Upload
+                    </div>
+                    <h1 className="text-4xl font-bold mb-3 bg-linear-to-r from-foreground to-foreground/70 bg-clip-text">
+                        Upload Your Files
+                    </h1>
+                    <p className="text-muted-foreground text-lg max-w-md mx-auto">
+                        Your files are encrypted before leaving your device
                     </p>
                 </div>
 
-                {/* Encryption Status */}
-                <Card className={encryptionEnabled ? 'border-green-500' : 'border-orange-500'}>
+                {/* Security Features */}
+                <div className="grid grid-cols-3 gap-4">
+                    {[
+                        { icon: Lock, label: 'End-to-End Encrypted', color: 'text-green-500 bg-green-500/10' },
+                        { icon: Zap, label: 'Lightning Fast', color: 'text-yellow-500 bg-yellow-500/10' },
+                        { icon: Shield, label: 'Zero Knowledge', color: 'text-blue-500 bg-blue-500/10' },
+                    ].map((feature, idx) => (
+                        <div key={idx} className="flex items-center gap-3 p-3 rounded-xl bg-card/50 border">
+                            <div className={`w-10 h-10 rounded-lg ${feature.color} flex items-center justify-center`}>
+                                <feature.icon className="w-5 h-5" />
+                            </div>
+                            <span className="text-sm font-medium">{feature.label}</span>
+                        </div>
+                    ))}
+                </div>
+
+                {/* Encryption Toggle */}
+                <Card className={`overflow-hidden transition-all duration-300 ${encryptionEnabled ? 'border-green-500/50 bg-green-500/5' : 'border-orange-500/50 bg-orange-500/5'}`}>
                     <CardContent className="p-4">
                         <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <Shield className={`w-6 h-6 ${encryptionEnabled ? 'text-green-500' : 'text-orange-500'}`} />
+                            <div className="flex items-center gap-4">
+                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${encryptionEnabled ? 'bg-green-500/20' : 'bg-orange-500/20'}`}>
+                                    <Shield className={`w-6 h-6 ${encryptionEnabled ? 'text-green-500' : 'text-orange-500'}`} />
+                                </div>
                                 <div>
-                                    <p className="font-semibold">
-                                        {encryptionEnabled ? 'Client-Side Encryption Enabled' : 'Encryption Disabled'}
+                                    <p className="font-semibold text-lg">
+                                        {encryptionEnabled ? 'Client-Side Encryption' : 'Encryption Disabled'}
                                     </p>
                                     <p className="text-sm text-muted-foreground">
                                         {encryptionEnabled
-                                            ? 'Files will be encrypted on your device before upload'
-                                            : 'Files will be uploaded without encryption (not recommended)'}
+                                            ? 'Files encrypted on your device before upload'
+                                            : 'Files will be uploaded without encryption'}
                                     </p>
                                 </div>
                             </div>
                             <Button
                                 variant={encryptionEnabled ? 'default' : 'outline'}
                                 onClick={() => setEncryptionEnabled(!encryptionEnabled)}
+                                className={encryptionEnabled ? 'bg-green-600 hover:bg-green-700' : ''}
                             >
-                                {encryptionEnabled ? 'Enabled' : 'Disabled'}
+                                {encryptionEnabled ? '✓ Enabled' : 'Enable'}
                             </Button>
                         </div>
                     </CardContent>
@@ -176,18 +212,29 @@ export const UploadPage = () => {
 
                 {/* Drop Zone */}
                 <Card
-                    className="border-dashed border-2 hover:border-primary/50 transition-colors cursor-pointer"
+                    className={`border-2 border-dashed transition-all duration-300 cursor-pointer overflow-hidden ${isDragging
+                            ? 'border-primary bg-primary/10 scale-[1.02]'
+                            : 'border-muted-foreground/30 hover:border-primary/50 hover:bg-muted/30'
+                        }`}
                     onDrop={onDrop}
                     onDragOver={onDragOver}
+                    onDragLeave={onDragLeave}
                 >
-                    <CardContent className="p-12">
-                        <div className="flex flex-col items-center justify-center gap-4 text-center">
-                            <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
-                                <UploadIcon className="w-10 h-10 text-primary" />
+                    <CardContent className="p-16">
+                        <div className="flex flex-col items-center justify-center gap-6 text-center">
+                            <div className={`relative transition-transform duration-300 ${isDragging ? 'scale-110' : ''}`}>
+                                <div className="w-24 h-24 rounded-2xl bg-linear-to-br from-primary/20 to-primary/5 flex items-center justify-center">
+                                    <Cloud className="w-12 h-12 text-primary" />
+                                </div>
+                                <div className="absolute -bottom-2 -right-2 w-10 h-10 rounded-xl bg-green-500/20 flex items-center justify-center">
+                                    <UploadIcon className="w-5 h-5 text-green-500" />
+                                </div>
                             </div>
                             <div>
-                                <p className="text-lg font-semibold mb-2">Drop files here to upload</p>
-                                <p className="text-sm text-muted-foreground mb-4">
+                                <p className="text-xl font-semibold mb-2">
+                                    {isDragging ? 'Drop your files here!' : 'Drag & drop files to upload'}
+                                </p>
+                                <p className="text-muted-foreground mb-6">
                                     or click to browse from your computer
                                 </p>
                                 <input
@@ -198,26 +245,45 @@ export const UploadPage = () => {
                                     id="file-input"
                                 />
                                 <label htmlFor="file-input">
-                                    <Button type="button">
+                                    <Button type="button" size="lg" className="gap-2 shadow-lg">
+                                        <UploadIcon className="w-5 h-5" />
                                         Browse Files
                                     </Button>
                                 </label>
                             </div>
-                            <p className="text-xs text-muted-foreground">
-                                Maximum file size: 100MB • Supported: All file types
-                            </p>
+                            <div className="flex flex-wrap justify-center gap-3 text-xs text-muted-foreground">
+                                <span className="px-3 py-1.5 bg-muted rounded-full">Max 100MB per file</span>
+                                <span className="px-3 py-1.5 bg-muted rounded-full">All file types</span>
+                                <span className="px-3 py-1.5 bg-muted rounded-full">Unlimited files</span>
+                            </div>
                         </div>
                     </CardContent>
                 </Card>
 
                 {/* File List */}
                 {files.length > 0 && (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Selected Files ({files.length})</CardTitle>
-                            <CardDescription>Review files before uploading</CardDescription>
+                    <Card className="overflow-hidden">
+                        <CardHeader className="bg-muted/30 border-b">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <CardTitle className="flex items-center gap-2">
+                                        Selected Files
+                                        <Badge variant="secondary" className="ml-2">{files.length}</Badge>
+                                    </CardTitle>
+                                    <CardDescription className="mt-1">
+                                        Total size: {formatBytes(totalSize)}
+                                        {completedCount > 0 && ` • ${completedCount}/${files.length} uploaded`}
+                                    </CardDescription>
+                                </div>
+                                {uploading && (
+                                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                        <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                                        Processing...
+                                    </div>
+                                )}
+                            </div>
                         </CardHeader>
-                        <CardContent className="space-y-3">
+                        <CardContent className="p-4 space-y-3 max-h-[400px] overflow-y-auto">
                             {files.map(file => (
                                 <FileItem
                                     key={file.id}
@@ -232,28 +298,44 @@ export const UploadPage = () => {
 
                 {/* Upload Button */}
                 {files.length > 0 && (
-                    <div className="flex justify-end gap-3">
-                        <Button
-                            variant="outline"
-                            onClick={() => setFiles([])}
-                            disabled={uploading}
-                        >
-                            Clear All
-                        </Button>
-                        <Button
-                            onClick={handleUpload}
-                            disabled={uploading}
-                            className="gap-2"
-                        >
+                    <div className="flex items-center justify-between p-4 bg-card rounded-xl border">
+                        <div className="text-sm text-muted-foreground">
                             {uploading ? (
-                                <>Uploading...</>
+                                <span className="flex items-center gap-2">
+                                    <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                                    Uploading {completedCount + 1} of {files.length}...
+                                </span>
                             ) : (
-                                <>
-                                    <UploadIcon className="w-4 h-4" />
-                                    Upload {files.length} File{files.length > 1 ? 's' : ''}
-                                </>
+                                <span>Ready to upload {files.length} file{files.length > 1 ? 's' : ''}</span>
                             )}
-                        </Button>
+                        </div>
+                        <div className="flex gap-3">
+                            <Button
+                                variant="outline"
+                                onClick={() => setFiles([])}
+                                disabled={uploading}
+                            >
+                                Clear All
+                            </Button>
+                            <Button
+                                onClick={handleUpload}
+                                disabled={uploading}
+                                className="gap-2 min-w-[140px] shadow-lg"
+                                size="lg"
+                            >
+                                {uploading ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                        Uploading...
+                                    </>
+                                ) : (
+                                    <>
+                                        <UploadIcon className="w-5 h-5" />
+                                        Upload All
+                                    </>
+                                )}
+                            </Button>
+                        </div>
                     </div>
                 )}
             </div>
@@ -262,59 +344,85 @@ export const UploadPage = () => {
 }
 
 const FileItem = ({ file, onRemove, uploading }) => {
+    const getFileIcon = () => {
+        const type = file.type || ''
+        if (type.startsWith('image/')) return FileImage
+        if (type.startsWith('video/')) return FileVideo
+        if (type.startsWith('audio/')) return FileAudio
+        if (type.includes('zip') || type.includes('rar') || type.includes('tar')) return FileArchive
+        return FileText
+    }
+
+    const FileIcon = getFileIcon()
+
     const getStatusBadge = () => {
         const statuses = {
-            pending: <Badge variant="secondary">Pending</Badge>,
-            hashing: <Badge variant="info" className="gap-1"><Hash className="w-3 h-3" />Hashing</Badge>,
-            encrypting: <Badge variant="info" className="gap-1"><Shield className="w-3 h-3" />Encrypting</Badge>,
-            uploading: <Badge variant="info">Uploading {file.progress}%</Badge>,
-            completed: <Badge variant="success" className="gap-1"><CheckCircle className="w-3 h-3" />Completed</Badge>,
+            pending: <Badge variant="secondary" className="gap-1"><div className="w-1.5 h-1.5 rounded-full bg-muted-foreground"></div>Pending</Badge>,
+            hashing: <Badge className="gap-1 bg-blue-500/10 text-blue-500 border-blue-500/20"><Hash className="w-3 h-3 animate-spin" />Hashing</Badge>,
+            encrypting: <Badge className="gap-1 bg-purple-500/10 text-purple-500 border-purple-500/20"><Shield className="w-3 h-3 animate-pulse" />Encrypting</Badge>,
+            uploading: <Badge className="gap-1 bg-orange-500/10 text-orange-500 border-orange-500/20"><UploadIcon className="w-3 h-3 animate-bounce" />Uploading</Badge>,
+            completed: <Badge className="gap-1 bg-green-500/10 text-green-500 border-green-500/20"><CheckCircle className="w-3 h-3" />Completed</Badge>,
         }
         return statuses[file.status]
     }
 
     return (
-        <div className="flex items-center gap-3 p-3 rounded-lg border bg-card">
-            <FileText className="w-8 h-8 text-primary shrink-0" />
+        <div className={`flex items-center gap-4 p-4 rounded-xl border transition-all duration-300 ${file.status === 'completed'
+                ? 'bg-green-500/5 border-green-500/20'
+                : 'bg-card hover:bg-muted/30'
+            }`}>
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${file.status === 'completed' ? 'bg-green-500/20' : 'bg-primary/10'
+                }`}>
+                <FileIcon className={`w-6 h-6 ${file.status === 'completed' ? 'text-green-500' : 'text-primary'}`} />
+            </div>
 
             <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
                     <p className="font-medium truncate">{file.name}</p>
                     {file.isSensitive && (
-                        <Badge variant="warning" className="gap-1">
+                        <Badge variant="warning" className="gap-1 shrink-0">
                             <AlertTriangle className="w-3 h-3" />
                             Sensitive
                         </Badge>
                     )}
                 </div>
 
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <span>{formatBytes(file.size)}</span>
-                    <span>•</span>
-                    <Badge variant="outline" className="text-xs">{file.category}</Badge>
-                    <span>•</span>
+                <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                    <span className="font-medium">{formatBytes(file.size)}</span>
+                    <span className="text-muted-foreground/50">•</span>
+                    <Badge variant="outline" className="text-xs capitalize">{file.category}</Badge>
+                    <span className="text-muted-foreground/50">•</span>
                     {getStatusBadge()}
                 </div>
 
-                {file.status === 'uploading' && (
-                    <div className="w-full bg-muted rounded-full h-2 mt-2">
+                {(file.status === 'uploading' || file.status === 'hashing' || file.status === 'encrypting') && (
+                    <div className="w-full bg-muted rounded-full h-1.5 mt-3 overflow-hidden">
                         <div
-                            className="bg-primary h-2 rounded-full transition-all duration-300"
-                            style={{ width: `${file.progress}%` }}
+                            className="h-1.5 rounded-full transition-all duration-300 bg-linear-to-r from-primary to-primary/60"
+                            style={{
+                                width: file.status === 'uploading' ? `${file.progress}%` : '100%',
+                                animation: file.status !== 'uploading' ? 'pulse 1s infinite' : 'none'
+                            }}
                         />
                     </div>
                 )}
             </div>
 
-            {!uploading && (
+            {!uploading && file.status !== 'completed' && (
                 <Button
                     variant="ghost"
                     size="icon"
                     onClick={() => onRemove(file.id)}
-                    className="shrink-0"
+                    className="shrink-0 hover:bg-destructive/10 hover:text-destructive"
                 >
                     <X className="w-4 h-4" />
                 </Button>
+            )}
+
+            {file.status === 'completed' && (
+                <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
+                    <CheckCircle className="w-5 h-5 text-green-500" />
+                </div>
             )}
         </div>
     )

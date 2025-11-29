@@ -12,6 +12,8 @@ import { Dashboard } from './pages/Dashboard'
 import { UploadPage } from './pages/UploadPage'
 import { FileDetailPage } from './pages/FileDetailPage'
 import { ShareSettingsPage } from './pages/ShareSettingsPage'
+import { ShareAccessPage } from './pages/ShareAccessPage'
+import ShareTracePage from './pages/ShareTracePage'
 import { InboxPage } from './pages/InboxPage'
 import { SecureNotePage } from './pages/SecureNotePage'
 import { SettingsPage } from './pages/SettingsPage'
@@ -23,8 +25,15 @@ const ProtectedRoute = ({ children }) => {
   return isAuthenticated ? children : <Navigate to="/login" />
 }
 
-const PublicRoute = ({ children }) => {
+const PublicRoute = ({ children, allowReturnUrl = false }) => {
   const { isAuthenticated } = useAuth()
+
+  // If there's a returnUrl in localStorage, allow access even if authenticated
+  // This handles the case where a logged-in user accesses a restricted share link
+  if (allowReturnUrl && localStorage.getItem('returnUrl')) {
+    return children
+  }
+
   return !isAuthenticated ? children : <Navigate to="/dashboard" />
 }
 
@@ -46,7 +55,7 @@ function AppContent() {
           </PublicRoute>
         } />
         <Route path="/login" element={
-          <PublicRoute>
+          <PublicRoute allowReturnUrl={true}>
             <LoginPage />
           </PublicRoute>
         } />
@@ -70,6 +79,11 @@ function AppContent() {
             <ShareSettingsPage />
           </ProtectedRoute>
         } />
+        <Route path="/share-link/:linkId/trace" element={
+          <ProtectedRoute>
+            <ShareTracePage />
+          </ProtectedRoute>
+        } />
         <Route path="/inbox" element={
           <ProtectedRoute>
             <InboxPage />
@@ -91,6 +105,8 @@ function AppContent() {
           </ProtectedRoute>
         } />
         <Route path="/help" element={<HelpCenterPage />} />
+        {/* Public share access page - accessible without login for public links */}
+        <Route path="/share/public/:token" element={<ShareAccessPage />} />
       </Routes>
     </>
   )

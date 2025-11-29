@@ -10,13 +10,14 @@ A modern, secure file transfer application built with React and Vite. This front
 2. [Tech Stack](#tech-stack)
 3. [Getting Started](#getting-started)
 4. [Project Structure](#project-structure)
-5. [Pages](#pages)
-6. [Components](#components)
-7. [Contexts](#contexts)
-8. [Services](#services)
-9. [Utilities](#utilities)
-10. [Routing](#routing)
-11. [Styling](#styling)
+5. [Encryption System](#encryption-system)
+6. [Pages](#pages)
+7. [Components](#components)
+8. [Contexts](#contexts)
+9. [Services](#services)
+10. [Utilities](#utilities)
+11. [Routing](#routing)
+12. [Styling](#styling)
 
 ---
 
@@ -26,10 +27,26 @@ SecureTransfer is a privacy-focused file sharing platform that emphasizes:
 
 - **End-to-End Encryption**: Files are encrypted on the client before upload
 - **Zero-Knowledge Architecture**: Server cannot access file contents
+- **RSA + AES Hybrid Encryption**: Secure communication over HTTP without HTTPS
 - **Privacy Mode**: UI blur feature to hide sensitive information
 - **Device Management**: Track and control active sessions
 - **Secure Notes**: Create and share encrypted text notes
 - **Link Controls**: Password protection, expiry dates, and download limits
+
+### Encryption Architecture
+
+Since this project operates over **HTTP** (not HTTPS), we implement **application-level encryption** to ensure confidentiality:
+
+```
+┌─────────────┐     HTTP (Encrypted Payload)     ┌─────────────┐
+│   Client    │ ◄──────────────────────────────► │   Server    │
+│             │                                   │             │
+│ ┌─────────┐ │                                   │ ┌─────────┐ │
+│ │RSA Keys │ │   AES-256-GCM encrypted data     │ │RSA Keys │ │
+│ │(2048bit)│ │   RSA-OAEP encrypted AES key     │ │(2048bit)│ │
+│ └─────────┘ │                                   │ └─────────┘ │
+└─────────────┘                                   └─────────────┘
+```
 
 ---
 
@@ -104,10 +121,12 @@ client/
 │   │       └── Toast.jsx
 │   ├── contexts/          # React Context providers
 │   │   ├── AuthContext.jsx
+│   │   ├── EncryptionContext.jsx  # Encryption state management
 │   │   ├── PrivacyContext.jsx
 │   │   └── ThemeContext.jsx
 │   ├── lib/               # Utility functions
-│   │   └── utils.js
+│   │   ├── utils.js
+│   │   └── crypto.js      # RSA+AES encryption utilities
 │   ├── pages/             # Page components
 │   │   ├── Dashboard.jsx
 │   │   ├── DeviceManagementPage.jsx
@@ -122,7 +141,8 @@ client/
 │   │   ├── SignupPage.jsx
 │   │   └── UploadPage.jsx
 │   ├── services/          # API service layer
-│   │   └── api.js
+│   │   ├── api.js         # Standard API (unencrypted)
+│   │   └── encryptedApi.js # Encrypted API (RSA+AES)
 │   ├── App.jsx            # Main application component
 │   ├── App.css            # Global styles
 │   ├── index.css          # Tailwind imports
@@ -132,6 +152,318 @@ client/
 ├── vite.config.js
 └── eslint.config.js
 ```
+
+---
+
+## Encryption System
+
+Since this application uses **HTTP** (not HTTPS), we implement our own encryption layer to ensure **confidentiality** of all data in transit. We use a **hybrid encryption** approach combining **RSA** and **AES**.
+
+### Why Hybrid Encryption?
+
+| Algorithm | Type | Speed | Key Size | Use Case |
+|-----------|------|-------|----------|----------|
+| **RSA-2048** | Asymmetric | Slow | 2048 bits | Encrypting small data (keys) |
+| **AES-256-GCM** | Symmetric | Fast | 256 bits | Encrypting large data (payloads) |
+
+- **RSA** alone is too slow for encrypting large data
+- **AES** alone requires secure key exchange
+- **Hybrid** = Best of both worlds!
+
+---
+
+### Encryption Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        CLIENT → SERVER                               │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  1. Client generates random AES-256 key + IV                        │
+│                     ↓                                                │
+│  2. Client encrypts DATA with AES-256-GCM                           │
+│                     ↓                                                │
+│  3. Client encrypts AES KEY with Server's RSA Public Key            │
+│                     ↓                                                │
+│  4. Client sends: { encryptedKey, iv, encryptedData }               │
+│                     ↓                                                │
+│  5. Server decrypts AES KEY with its RSA Private Key                │
+│                     ↓                                                │
+│  6. Server decrypts DATA with AES KEY                               │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                        SERVER → CLIENT                               │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  1. Server generates random AES-256 key + IV                        │
+│                     ↓                                                │
+│  2. Server encrypts RESPONSE with AES-256-GCM                       │
+│                     ↓                                                │
+│  3. Server encrypts AES KEY with Client's RSA Public Key            │
+│                     ↓                                                │
+│  4. Server sends: { encryptedKey, iv, encryptedData }               │
+│                     ↓                                                │
+│  5. Client decrypts AES KEY with its RSA Private Key                │
+│                     ↓                                                │
+│  6. Client decrypts RESPONSE with AES KEY                           │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Key Exchange Process
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                    INITIAL KEY EXCHANGE                          │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│  Step 1: Client generates RSA-2048 key pair                      │
+│          ├── Public Key  (shared with server)                    │
+│          └── Private Key (stored locally)                        │
+│                                                                   │
+│  Step 2: Client fetches Server's Public Key                      │
+│          GET /api/crypto/server-public-key                       │
+│                                                                   │
+│  Step 3: Client sends its Public Key to Server                   │
+│          POST /api/crypto/client-public-key                      │
+│                                                                   │
+│  Step 4: Both parties now have each other's public keys          │
+│          - Client can encrypt requests for Server                │
+│          - Server can encrypt responses for Client               │
+│                                                                   │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Crypto Library (`src/lib/crypto.js`)
+
+#### AES Functions
+
+| Function | Description |
+|----------|-------------|
+| `generateAESKey()` | Generate random AES-256 key |
+| `generateIV()` | Generate 12-byte IV for GCM mode |
+| `encryptAES(plaintext, key, iv)` | Encrypt text with AES-GCM |
+| `decryptAES(ciphertext, key, iv)` | Decrypt text with AES-GCM |
+| `exportAESKey(key)` | Export key to raw bytes |
+| `importAESKey(rawKey)` | Import key from raw bytes |
+
+#### RSA Functions
+
+| Function | Description |
+|----------|-------------|
+| `generateRSAKeyPair()` | Generate RSA-2048 key pair |
+| `exportPublicKeyPEM(publicKey)` | Export public key to PEM format |
+| `importPublicKeyPEM(pem)` | Import public key from PEM format |
+| `encryptRSA(data, publicKey)` | Encrypt data with RSA public key |
+| `decryptRSA(ciphertext, privateKey)` | Decrypt data with RSA private key |
+
+#### Hybrid Encryption Functions
+
+| Function | Description |
+|----------|-------------|
+| `hybridEncrypt(message, serverPublicKey)` | Encrypt message using RSA+AES |
+| `hybridDecrypt(encryptedPackage, clientPrivateKey)` | Decrypt message using RSA+AES |
+
+#### File Encryption Functions
+
+| Function | Description |
+|----------|-------------|
+| `encryptFile(file, aesKey?)` | Encrypt file with AES-GCM |
+| `decryptFile(blob, key, iv, type)` | Decrypt file blob |
+
+#### Key Storage Functions
+
+| Function | Description |
+|----------|-------------|
+| `initializeClientKeys()` | Initialize or retrieve client RSA keys |
+| `storeClientKeyPair(keyPair)` | Store keys in localStorage |
+| `getClientKeyPair()` | Retrieve keys from localStorage |
+| `clearClientKeys()` | Clear keys from storage |
+
+#### Utility Functions
+
+| Function | Description |
+|----------|-------------|
+| `sha256(data)` | Compute SHA-256 hash |
+| `hashFile(file)` | Compute file hash |
+| `arrayBufferToBase64(buffer)` | Convert ArrayBuffer to Base64 |
+| `base64ToArrayBuffer(base64)` | Convert Base64 to ArrayBuffer |
+| `arrayBufferToHex(buffer)` | Convert ArrayBuffer to Hex string |
+
+---
+
+### Usage Examples
+
+#### Encrypting a Request
+
+```javascript
+import { hybridEncrypt } from '@/lib/crypto'
+
+// Encrypt sensitive login data
+const loginData = { email: 'user@example.com', password: 'secret123' }
+const encrypted = await hybridEncrypt(loginData, serverPublicKey)
+
+// Result:
+// {
+//   encryptedKey: "base64...",   // AES key encrypted with RSA
+//   iv: "base64...",              // Initialization vector
+//   encryptedData: "base64..."   // Data encrypted with AES
+// }
+```
+
+#### Decrypting a Response
+
+```javascript
+import { hybridDecrypt } from '@/lib/crypto'
+
+// Decrypt server response
+const decrypted = await hybridDecrypt(encryptedResponse, clientPrivateKey)
+
+// Result: original JSON string or object
+```
+
+#### Encrypting a File
+
+```javascript
+import { encryptFile, decryptFile } from '@/lib/crypto'
+
+// Encrypt
+const { encryptedBlob, key, iv } = await encryptFile(file)
+
+// Upload encryptedBlob, store key and iv securely
+
+// Decrypt (when downloading)
+const decryptedBlob = await decryptFile(encryptedBlob, key, iv, 'application/pdf')
+```
+
+---
+
+### Encrypted API Service (`src/services/encryptedApi.js`)
+
+The encrypted API service wraps axios with automatic encryption/decryption.
+
+#### Initialization
+
+```javascript
+import { initializeEncryption } from '@/services/encryptedApi'
+
+// Called on app startup
+await initializeEncryption()
+// 1. Generates/loads client RSA keys
+// 2. Fetches server's public key
+// 3. Sends client's public key to server
+```
+
+#### Encrypted API Endpoints
+
+```javascript
+import { 
+    secureAuthApi, 
+    secureFileApi, 
+    secureShareApi 
+} from '@/services/encryptedApi'
+
+// All requests are automatically encrypted
+await secureAuthApi.login({ email, password })
+
+// All responses are automatically decrypted
+const files = await secureFileApi.getAll()
+```
+
+#### Request/Response Format
+
+**Encrypted Request:**
+```json
+{
+    "encrypted": true,
+    "payload": {
+        "encryptedKey": "RSA-encrypted AES key (base64)",
+        "iv": "Initialization Vector (base64)",
+        "encryptedData": "AES-encrypted request body (base64)"
+    }
+}
+```
+
+**Encrypted Response:**
+```json
+{
+    "encrypted": true,
+    "payload": {
+        "encryptedKey": "RSA-encrypted AES key (base64)",
+        "iv": "Initialization Vector (base64)",
+        "encryptedData": "AES-encrypted response body (base64)"
+    }
+}
+```
+
+---
+
+### EncryptionContext (`src/contexts/EncryptionContext.jsx`)
+
+React context for managing encryption state.
+
+**Provided Values:**
+
+| Value | Type | Description |
+|-------|------|-------------|
+| `isReady` | boolean | Encryption initialized successfully |
+| `isInitializing` | boolean | Initialization in progress |
+| `error` | string \| null | Initialization error message |
+| `retryInitialization` | function | Retry failed initialization |
+| `checkStatus` | function | Check current encryption status |
+
+**Usage:**
+
+```jsx
+import { useEncryption } from '@/contexts/EncryptionContext'
+
+const MyComponent = () => {
+    const { isReady, isInitializing, error } = useEncryption()
+
+    if (isInitializing) {
+        return <div>Initializing secure connection...</div>
+    }
+
+    if (error) {
+        return <div>Security error: {error}</div>
+    }
+
+    if (!isReady) {
+        return <div>Encryption not available</div>
+    }
+
+    return <div>🔐 Secure connection established</div>
+}
+```
+
+---
+
+### Security Considerations
+
+| Concern | Mitigation |
+|---------|------------|
+| **Key Storage** | Client keys stored in localStorage (consider IndexedDB for production) |
+| **Key Rotation** | Implement periodic key rotation for enhanced security |
+| **Man-in-the-Middle** | Server public key should be verified (consider certificate pinning) |
+| **Replay Attacks** | Include timestamps/nonces in requests |
+| **Forward Secrecy** | Each request uses a new AES key |
+
+---
+
+### Algorithm Specifications
+
+| Component | Algorithm | Details |
+|-----------|-----------|---------|
+| Symmetric Encryption | AES-256-GCM | 256-bit key, 12-byte IV, authenticated |
+| Asymmetric Encryption | RSA-OAEP | 2048-bit modulus, SHA-256 hash |
+| Hashing | SHA-256 | 256-bit digest |
+| Random Generation | Web Crypto API | CSPRNG |
 
 ---
 
@@ -681,6 +1013,44 @@ const { theme, toggleTheme } = useTheme()
 
 ---
 
+### EncryptionContext (`src/contexts/EncryptionContext.jsx`)
+
+Manages the RSA+AES encryption system state.
+
+**Provided Values**:
+| Value | Type | Description |
+|-------|------|-------------|
+| isReady | boolean | Encryption initialized successfully |
+| isInitializing | boolean | Key exchange in progress |
+| error | string \| null | Initialization error |
+| retryInitialization | function | Retry failed initialization |
+| checkStatus | function | Check current status |
+
+**Usage**:
+
+```jsx
+import { useEncryption } from '@/contexts/EncryptionContext'
+
+const { isReady, isInitializing, error, retryInitialization } = useEncryption()
+
+// Show loading while keys are being exchanged
+if (isInitializing) {
+    return <div>Establishing secure connection...</div>
+}
+
+// Handle errors
+if (error) {
+    return (
+        <div>
+            <p>Security Error: {error}</p>
+            <button onClick={retryInitialization}>Retry</button>
+        </div>
+    )
+}
+```
+
+---
+
 ### PrivacyContext (`src/contexts/PrivacyContext.jsx`)
 
 Manages privacy screen mode for blurring sensitive content.
@@ -708,7 +1078,16 @@ const { privacyMode, togglePrivacyMode } = usePrivacy()
 
 ## Services
 
-### API Service (`src/services/api.js`)
+### API Services
+
+The application provides two API service layers:
+
+1. **`api.js`** - Standard unencrypted API (for development/fallback)
+2. **`encryptedApi.js`** - RSA+AES encrypted API (for production)
+
+---
+
+### Standard API Service (`src/services/api.js`)
 
 Axios-based API client for backend communication.
 
@@ -798,6 +1177,72 @@ Analytics and statistics endpoints.
 | `getStorage()` | GET /analytics/storage | Get storage usage |
 | `getActivity()` | GET /analytics/activity | Get activity log |
 | `getFileStats(id)` | GET /analytics/file/:id | Get file access stats |
+
+---
+
+### Encrypted API Service (`src/services/encryptedApi.js`)
+
+Secure API layer with automatic RSA+AES encryption/decryption.
+
+**Initialization:**
+
+```javascript
+import { initializeEncryption, isEncryptionReady } from '@/services/encryptedApi'
+
+// Initialize on app startup
+const success = await initializeEncryption()
+// Returns true if key exchange succeeded
+
+// Check status anytime
+const ready = isEncryptionReady()
+```
+
+**Encrypted API Endpoints:**
+
+All endpoints mirror the standard API but with automatic encryption:
+
+```javascript
+import { 
+    secureAuthApi,
+    secureFileApi,
+    secureShareApi,
+    secureNoteApi,
+    secureDeviceApi,
+    secureAnalyticsApi
+} from '@/services/encryptedApi'
+
+// Example: Login with encrypted credentials
+await secureAuthApi.login({ email: 'user@example.com', password: 'secret' })
+
+// Example: Get files (response is auto-decrypted)
+const { data } = await secureFileApi.getAll()
+```
+
+**How It Works:**
+
+| Step | Request Flow | Response Flow |
+|------|--------------|---------------|
+| 1 | Generate random AES key | Receive encrypted package |
+| 2 | Encrypt body with AES | Decrypt AES key with RSA |
+| 3 | Encrypt AES key with RSA | Decrypt body with AES |
+| 4 | Send encrypted package | Return decrypted data |
+
+**Request Headers:**
+```
+X-Encrypted-Request: true
+```
+
+**Encrypted Payload Structure:**
+```json
+{
+    "encrypted": true,
+    "payload": {
+        "encryptedKey": "base64(RSA(AESKey))",
+        "iv": "base64(IV)",
+        "encryptedData": "base64(AES(data))"
+    }
+}
+```
 
 ---
 

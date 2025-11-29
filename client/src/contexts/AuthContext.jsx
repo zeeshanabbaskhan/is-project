@@ -17,11 +17,24 @@ export const AuthProvider = ({ children }) => {
 
     useEffect(() => {
         const checkAuth = async () => {
+            const token = localStorage.getItem('token')
+            if (!token) {
+                setLoading(false)
+                return
+            }
+
             try {
                 const { data } = await authApi.getMe()
-                setUser(data)
+                if (data.success && data.user) {
+                    setUser(data.user)
+                } else {
+                    localStorage.removeItem('token')
+                    localStorage.removeItem('user')
+                }
             } catch (error) {
-                console.error(error)
+                console.error('Auth check failed:', error)
+                localStorage.removeItem('token')
+                localStorage.removeItem('user')
                 setUser(null)
             } finally {
                 setLoading(false)
@@ -32,22 +45,46 @@ export const AuthProvider = ({ children }) => {
 
     const login = async (credentials) => {
         const { data } = await authApi.login(credentials)
-        setUser(data.user)
+
+        // If 2FA is required, return without setting user
+        if (data.requiresTwoFactor) {
+            return data
+        }
+
+        if (data.success && data.token) {
+            localStorage.setItem('token', data.token)
+            localStorage.setItem('user', JSON.stringify(data.user))
+            setUser(data.user)
+        }
         return data
     }
 
     const signup = async (userData) => {
         const { data } = await authApi.register(userData)
-        setUser(data.user)
+        if (data.success && data.token) {
+            localStorage.setItem('token', data.token)
+            localStorage.setItem('user', JSON.stringify(data.user))
+            setUser(data.user)
+        }
         return data
     }
 
     const logout = async () => {
         try {
             await authApi.logout()
+        } catch (error) {
+            console.error('Logout error:', error)
         } finally {
+            localStorage.removeItem('token')
+            localStorage.removeItem('user')
             setUser(null)
         }
+    }
+
+    const updateUser = (updates) => {
+        const updatedUser = { ...user, ...updates }
+        setUser(updatedUser)
+        localStorage.setItem('user', JSON.stringify(updatedUser))
     }
 
     return (
@@ -56,6 +93,7 @@ export const AuthProvider = ({ children }) => {
             login,
             logout,
             signup,
+            updateUser,
             isAuthenticated: !!user,
             loading
         }}>

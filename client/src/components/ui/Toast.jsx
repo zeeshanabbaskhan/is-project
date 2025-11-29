@@ -55,12 +55,17 @@ const Toast = ({ type, message, onClose }) => {
         info: 'bg-blue-500 text-white',
     }
 
+    // Ensure message is a string (handle objects/errors gracefully)
+    const displayMessage = typeof message === 'string'
+        ? message
+        : message?.message || JSON.stringify(message) || 'An error occurred'
+
     return (
         <div className={cn(
             'flex items-center gap-2 px-4 py-3 rounded-md shadow-lg min-w-[300px]',
             variants[type]
         )}>
-            <p className="flex-1 text-sm font-medium">{message}</p>
+            <p className="flex-1 text-sm font-medium">{displayMessage}</p>
             <button onClick={onClose} className="hover:opacity-80">
                 <X className="w-4 h-4" />
             </button>
