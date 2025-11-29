@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: oklch(100% 0 0);
+  --color-foreground: oklch(9% 0.024 285.82);
+  --color-card: oklch(100% 0 0);
+  --color-card-foreground: oklch(9% 0.024 285.82);
+  --color-primary: oklch(56.6% 0.182 257.42);
+  --color-primary-foreground: oklch(98.7% 0.003 285.82);
+  --color-secondary: oklch(96.8% 0.001 285.82);
+  --color-secondary-foreground: oklch(14.2% 0.029 285.82);
+  --color-muted: oklch(96.8% 0.001 285.82);
+  --color-muted-foreground: oklch(53.6% 0.021 285.82);
+  --color-accent: oklch(96.8% 0.001 285.82);
+  --color-accent-foreground: oklch(14.2% 0.029 285.82);
+  --color-destructive: oklch(62.8% 0.228 29.23);
+  --color-destructive-foreground: oklch(98.7% 0.003 285.82);
+  --color-border: oklch(92.5% 0.004 285.82);
+  --color-input: oklch(92.5% 0.004 285.82);
+  --color-ring: oklch(56.6% 0.182 257.42);
+  --color-success: oklch(63% 0.17 145);
+  --color-warning: oklch(75% 0.15 85);
+  --color-info: oklch(65% 0.15 245);
+  --radius: 0.5rem;
+}
+
+:root[class~="dark"] {
+  --color-background: oklch(9% 0.024 285.82);
+  --color-foreground: oklch(98.7% 0.003 285.82);
+  --color-card: oklch(9% 0.024 285.82);
+  --color-card-foreground: oklch(98.7% 0.003 285.82);
+  --color-primary: oklch(65.4% 0.196 257.42);
+  --color-primary-foreground: oklch(14.2% 0.029 285.82);
+  --color-secondary: oklch(19.7% 0.021 285.82);
+  --color-secondary-foreground: oklch(98.7% 0.003 285.82);
+  --color-muted: oklch(19.7% 0.021 285.82);
+  --color-muted-foreground: oklch(68.6% 0.013 285.82);
+  --color-accent: oklch(19.7% 0.021 285.82);
+  --color-accent-foreground: oklch(98.7% 0.003 285.82);
+  --color-destructive: oklch(36.4% 0.153 29.23);
+  --color-destructive-foreground: oklch(98.7% 0.003 285.82);
+  --color-border: oklch(19.7% 0.021 285.82);
+  --color-input: oklch(19.7% 0.021 285.82);
+  --color-ring: oklch(54.2% 0.19 257.42);
+}
+
+* {
+  border-color: var(--color-border);
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: system-ui, -apple-system, sans-serif;
+  margin: 0;
+  padding: 0;
+}
+
+.privacy-screen {
+  filter: blur(8px);
+  transition: filter 0.3s ease;
+}
+
+.privacy-screen:hover {
+  filter: blur(0);
+}
