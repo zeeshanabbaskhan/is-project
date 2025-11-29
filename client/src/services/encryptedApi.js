@@ -13,7 +13,8 @@ import {
     initializeClientKeys
 } from '../lib/crypto'
 
-const API_BASE_URL = 'http://localhost:5000/api'
+// Use VITE_API_URL if set, otherwise use relative URL (works in both dev & production)
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
 
 // Server's RSA public key (will be fetched from server)
 let serverPublicKey = null
