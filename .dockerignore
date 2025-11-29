@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+client/node_modules/
+server/node_modules/
+
+# Environment files (use CapRover env vars instead)
+.env
+.env.local
+.env.*.local
+
+# Git
+.git/
+.gitignore
+
+# Build artifacts
+client/dist/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+
+# Uploads (use persistent storage)
+uploads/
+
+# Documentation
+*.md

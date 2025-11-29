@@ -21,11 +21,12 @@ import deviceRoutes from './routes/device.routes.js';
 import analyticsRoutes from './routes/analytics.routes.js';
 import cryptoRoutes from './routes/crypto.routes.js';
 
-// Load environment variables from root .env file
-dotenv.config({ path: path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '.env') });
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Load environment variables (from root .env in dev, or use Docker env vars in production)
+dotenv.config({ path: path.join(__dirname, '..', '..', '.env') });
+dotenv.config(); // Also try current directory for Docker
 
 const app = express();
 
@@ -37,7 +38,8 @@ if (!fs.existsSync(uploadsDir)) {
 }
 
 // Client build path (for production)
-const clientBuildPath = path.join(__dirname, '..', '..', 'client', 'dist');
+// In Docker: /app/client/dist, In dev: ../client/dist relative to server/src
+const clientBuildPath = process.env.CLIENT_DIST_PATH || path.join(__dirname, '..', '..', 'client', 'dist');
 const isProduction = process.env.NODE_ENV === 'production' || fs.existsSync(clientBuildPath);
 
 // CORS origin configuration
