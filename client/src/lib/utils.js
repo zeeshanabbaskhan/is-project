@@ -65,29 +65,33 @@ export async function hashFile(file) {
 export function categorizefile(filename) {
     const ext = filename.split('.').pop()?.toLowerCase()
 
-    const categories = {
-        invoice: ['invoice', 'receipt', 'bill'],
-        passport: ['passport', 'id'],
-        tax: ['tax', 'w2', '1099'],
-        legal: ['contract', 'agreement', 'legal'],
-        confidential: ['confidential', 'private', 'secret']
-    }
-
-    for (const [category, keywords] of Object.entries(categories)) {
-        if (keywords.some(keyword => filename.toLowerCase().includes(keyword))) {
-            return category
-        }
-    }
-
     const typeMap = {
         pdf: 'document',
         doc: 'document',
         docx: 'document',
+        txt: 'document',
+        xls: 'document',
+        xlsx: 'document',
+        ppt: 'document',
+        pptx: 'document',
         jpg: 'image',
         jpeg: 'image',
         png: 'image',
+        gif: 'image',
+        webp: 'image',
+        svg: 'image',
         mp4: 'video',
-        mp3: 'audio'
+        mov: 'video',
+        avi: 'video',
+        webm: 'video',
+        mp3: 'audio',
+        wav: 'audio',
+        flac: 'audio',
+        zip: 'archive',
+        rar: 'archive',
+        '7z': 'archive',
+        tar: 'archive',
+        gz: 'archive',
     }
 
     return typeMap[ext] || 'other'

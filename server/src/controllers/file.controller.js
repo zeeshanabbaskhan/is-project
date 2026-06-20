@@ -2,6 +2,15 @@ import { File, User, ShareLink, AccessLog } from '../models/index.js';
 import { sha256 } from '../utils/crypto.js';
 import { storeEncryptedFile, readDecryptedFile, removeStoredFile, sensitiveFileFields } from '../utils/storage.js';
 
+const VALID_CATEGORIES = new Set(['document', 'image', 'video', 'audio', 'archive', 'other']);
+
+function resolveCategory(category, mimeType) {
+    if (category && VALID_CATEGORIES.has(category)) {
+        return category;
+    }
+    return File.getCategoryFromMime(mimeType);
+}
+
 /**
  * Upload encrypted file
  */
@@ -10,12 +19,19 @@ export const uploadFile = async (req, res) => {
         if (!req.file) {
             return res.status(400).json({
                 success: false,
-                message: 'No file uploaded'
+                message: 'No file received. Check file size limits and try again.'
             });
         }
 
         const { name, description, tags, category } = req.body;
         const user = await User.findById(req.userId);
+
+        if (!user) {
+            return res.status(401).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
 
         // Check storage limit
         if (user.storageUsed + req.file.size > user.storageLimit) {
@@ -31,8 +47,16 @@ export const uploadFile = async (req, res) => {
         // Calculate hash of original file
         const hash = sha256(req.file.buffer);
 
-        // Determine category from mimetype
-        const fileCategory = category || File.getCategoryFromMime(req.file.mimetype);
+        const fileCategory = resolveCategory(category, req.file.mimetype);
+
+        let parsedTags = [];
+        if (tags) {
+            try {
+                parsedTags = typeof tags === 'string' ? JSON.parse(tags) : tags;
+            } catch {
+                parsedTags = [];
+            }
+        }
 
         // Create file record
         const file = await File.create({
@@ -44,11 +68,11 @@ export const uploadFile = async (req, res) => {
             encryptionIV: stored.encryptionIV,
             size: req.file.size,
             encryptedSize: stored.encryptedSize,
-            mimeType: req.file.mimetype,
+            mimeType: req.file.mimetype || 'application/octet-stream',
             hash,
             category: fileCategory,
             description: description || '',
-            tags: tags ? JSON.parse(tags) : [],
+            tags: parsedTags,
             owner: req.userId
         });
 
@@ -72,7 +96,7 @@ export const uploadFile = async (req, res) => {
         console.error('Upload error:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to upload file'
+            message: error.message || 'Failed to upload file'
         });
     }
 };

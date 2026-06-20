@@ -67,9 +67,7 @@ export const authApi = {
 
 // File API
 export const fileApi = {
-    upload: (formData) => api.post('/files/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-    }),
+    upload: (formData) => api.post('/files/upload', formData),
     getAll: (params) => api.get('/files', { params }),
     getShared: () => api.get('/files/shared'),  // Files shared WITH the user (inbox)
     getOne: (id) => api.get(`/files/${id}`),

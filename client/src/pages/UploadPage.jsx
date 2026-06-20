@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Upload as UploadIcon, FileText, X, Shield, AlertTriangle, CheckCircle, Hash, Cloud, Sparkles, Lock, Zap, FileImage, FileVideo, FileAudio, FileArchive, File } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
@@ -8,6 +8,9 @@ import { Badge } from '@/components/ui/Badge'
 import { formatBytes, detectSensitiveContent, categorizefile } from '@/lib/utils'
 import { fileApi } from '@/services/api'
 
+// Vercel serverless request body limit is ~4.5MB
+const MAX_FILE_SIZE = 4 * 1024 * 1024
+
 export const UploadPage = () => {
     const [files, setFiles] = useState([])
     const [uploading, setUploading] = useState(false)
@@ -15,10 +18,23 @@ export const UploadPage = () => {
     const [isDragging, setIsDragging] = useState(false)
     const toast = useToast()
     const navigate = useNavigate()
+    const fileInputRef = useRef(null)
+
+    const openFilePicker = () => {
+        fileInputRef.current?.click()
+    }
 
     const processFiles = useCallback(async (newFiles) => {
+        const oversized = newFiles.filter(f => f.size > MAX_FILE_SIZE)
+        if (oversized.length > 0) {
+            toast.error(`${oversized.length} file(s) exceed the ${formatBytes(MAX_FILE_SIZE)} upload limit`)
+        }
+
+        const validFiles = newFiles.filter(f => f.size <= MAX_FILE_SIZE)
+        if (validFiles.length === 0) return
+
         const processedFiles = await Promise.all(
-            newFiles.map(async (file) => {
+            validFiles.map(async (file) => {
                 const category = categorizefile(file.name)
                 const isSensitive = detectSensitiveContent(file.name)
 
@@ -72,7 +88,10 @@ export const UploadPage = () => {
 
     const handleFileSelect = (e) => {
         const selectedFiles = Array.from(e.target.files)
-        processFiles(selectedFiles)
+        if (selectedFiles.length > 0) {
+            processFiles(selectedFiles)
+        }
+        e.target.value = ''
     }
 
     const removeFile = (id) => {
@@ -95,28 +114,13 @@ export const UploadPage = () => {
             for (let i = 0; i < files.length; i++) {
                 const fileItem = files[i]
 
-                // Simulate hashing
-                setFiles(prev => prev.map(f =>
-                    f.id === fileItem.id ? { ...f, status: 'hashing' } : f
-                ))
-                await new Promise(resolve => setTimeout(resolve, 300))
-
-                // Simulate encryption
-                setFiles(prev => prev.map(f =>
-                    f.id === fileItem.id ? { ...f, status: 'encrypting' } : f
-                ))
-                await new Promise(resolve => setTimeout(resolve, 300))
-
-                // Upload
                 setFiles(prev => prev.map(f =>
                     f.id === fileItem.id ? { ...f, status: 'uploading' } : f
                 ))
 
-                // Create FormData for actual file upload
                 const formData = new FormData()
                 formData.append('file', fileItem.file)
                 formData.append('category', fileItem.category)
-                formData.append('isConfidential', fileItem.isSensitive ? 'true' : 'false')
 
                 await fileApi.upload(formData)
 
@@ -132,7 +136,11 @@ export const UploadPage = () => {
 
         } catch (error) {
             console.error('Upload failed:', error)
-            toast.error(error.response?.data?.message || 'Failed to upload files')
+            const message = error.response?.data?.message || error.message || 'Failed to upload files'
+            toast.error(message)
+            setFiles(prev => prev.map(f =>
+                f.status !== 'completed' ? { ...f, status: 'failed' } : f
+            ))
         } finally {
             setUploading(false)
         }
@@ -219,9 +227,17 @@ export const UploadPage = () => {
                     onDrop={onDrop}
                     onDragOver={onDragOver}
                     onDragLeave={onDragLeave}
+                    onClick={openFilePicker}
                 >
                     <CardContent className="p-16">
                         <div className="flex flex-col items-center justify-center gap-6 text-center">
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                multiple
+                                onChange={handleFileSelect}
+                                className="hidden"
+                            />
                             <div className={`relative transition-transform duration-300 ${isDragging ? 'scale-110' : ''}`}>
                                 <div className="w-24 h-24 rounded-2xl bg-linear-to-br from-primary/20 to-primary/5 flex items-center justify-center">
                                     <Cloud className="w-12 h-12 text-primary" />
@@ -237,22 +253,21 @@ export const UploadPage = () => {
                                 <p className="text-muted-foreground mb-6">
                                     or click to browse from your computer
                                 </p>
-                                <input
-                                    type="file"
-                                    multiple
-                                    onChange={handleFileSelect}
-                                    className="hidden"
-                                    id="file-input"
-                                />
-                                <label htmlFor="file-input">
-                                    <Button type="button" size="lg" className="gap-2 shadow-lg">
-                                        <UploadIcon className="w-5 h-5" />
-                                        Browse Files
-                                    </Button>
-                                </label>
+                                <Button
+                                    type="button"
+                                    size="lg"
+                                    className="gap-2 shadow-lg"
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        openFilePicker()
+                                    }}
+                                >
+                                    <UploadIcon className="w-5 h-5" />
+                                    Browse Files
+                                </Button>
                             </div>
                             <div className="flex flex-wrap justify-center gap-3 text-xs text-muted-foreground">
-                                <span className="px-3 py-1.5 bg-muted rounded-full">Max 100MB per file</span>
+                                <span className="px-3 py-1.5 bg-muted rounded-full">Max {formatBytes(MAX_FILE_SIZE)} per file</span>
                                 <span className="px-3 py-1.5 bg-muted rounded-full">All file types</span>
                                 <span className="px-3 py-1.5 bg-muted rounded-full">Unlimited files</span>
                             </div>
@@ -362,6 +377,7 @@ const FileItem = ({ file, onRemove, uploading }) => {
             encrypting: <Badge className="gap-1 bg-purple-500/10 text-purple-500 border-purple-500/20"><Shield className="w-3 h-3 animate-pulse" />Encrypting</Badge>,
             uploading: <Badge className="gap-1 bg-orange-500/10 text-orange-500 border-orange-500/20"><UploadIcon className="w-3 h-3 animate-bounce" />Uploading</Badge>,
             completed: <Badge className="gap-1 bg-green-500/10 text-green-500 border-green-500/20"><CheckCircle className="w-3 h-3" />Completed</Badge>,
+            failed: <Badge className="gap-1 bg-red-500/10 text-red-500 border-red-500/20"><AlertTriangle className="w-3 h-3" />Failed</Badge>,
         }
         return statuses[file.status]
     }

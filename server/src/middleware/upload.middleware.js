@@ -45,7 +45,9 @@ const fileFilter = (req, file, cb) => {
 };
 
 // Configure multer
-const maxFileSize = parseInt(process.env.MAX_FILE_SIZE) || 100 * 1024 * 1024; // 100MB default
+const maxFileSize = process.env.VERCEL
+    ? Math.min(parseInt(process.env.MAX_FILE_SIZE) || 4 * 1024 * 1024, 4 * 1024 * 1024)
+    : (parseInt(process.env.MAX_FILE_SIZE) || 100 * 1024 * 1024);
 
 export const upload = multer({
     storage,
