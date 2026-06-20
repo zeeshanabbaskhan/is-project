@@ -10,10 +10,15 @@ const fileSchema = new mongoose.Schema({
         type: String,
         required: true
     },
-    // File is stored encrypted on disk
+    // File is stored encrypted on disk (or in MongoDB on Vercel)
     storagePath: {
         type: String,
-        required: true // Path to encrypted file on server
+        required: true
+    },
+    // Encrypted file bytes (used on Vercel serverless instead of disk)
+    encryptedData: {
+        type: Buffer,
+        select: false
     },
     // Encryption metadata (stored securely, NOT in file)
     encryptionKey: {

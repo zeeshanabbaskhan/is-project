@@ -11,8 +11,12 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Key storage paths
-const KEYS_DIR = path.join(__dirname, '..', '..', 'keys');
+const isVercel = Boolean(process.env.VERCEL);
+
+// Key storage paths (local/Docker); on Vercel use /tmp or env vars
+const KEYS_DIR = isVercel
+    ? path.join('/tmp', 'securetransfer-keys')
+    : path.join(__dirname, '..', '..', 'keys');
 const PRIVATE_KEY_PATH = path.join(KEYS_DIR, 'server_private.pem');
 const PUBLIC_KEY_PATH = path.join(KEYS_DIR, 'server_public.pem');
 
@@ -27,6 +31,11 @@ const clientPublicKeys = new Map();
  * Generate server RSA key pair if not exists
  */
 export function initializeServerKeys() {
+    if (process.env.SERVER_RSA_PRIVATE_KEY && process.env.SERVER_RSA_PUBLIC_KEY) {
+        console.log('🔑 Server RSA keys loaded from environment');
+        return;
+    }
+
     // Create keys directory if needed
     if (!fs.existsSync(KEYS_DIR)) {
         fs.mkdirSync(KEYS_DIR, { recursive: true });
@@ -61,6 +70,9 @@ export function initializeServerKeys() {
  * Get server's public key (PEM format)
  */
 export function getServerPublicKey() {
+    if (process.env.SERVER_RSA_PUBLIC_KEY) {
+        return process.env.SERVER_RSA_PUBLIC_KEY.replace(/\\n/g, '\n');
+    }
     if (!fs.existsSync(PUBLIC_KEY_PATH)) {
         initializeServerKeys();
     }
@@ -71,6 +83,9 @@ export function getServerPublicKey() {
  * Get server's private key (PEM format)
  */
 export function getServerPrivateKey() {
+    if (process.env.SERVER_RSA_PRIVATE_KEY) {
+        return process.env.SERVER_RSA_PRIVATE_KEY.replace(/\\n/g, '\n');
+    }
     if (!fs.existsSync(PRIVATE_KEY_PATH)) {
         initializeServerKeys();
     }
@@ -275,22 +290,27 @@ export function hybridEncrypt(data, clientPublicKeyPEM) {
  * @param {string} outputPath - Path to save encrypted file
  * @returns {{key: string, iv: string}} Encryption key and IV (base64)
  */
-export function encryptFile(fileBuffer, outputPath) {
+export function encryptFileToBuffer(fileBuffer) {
     const key = generateAESKey();
     const iv = generateIV();
 
     const { ciphertext, authTag } = aesEncrypt(fileBuffer, key, iv);
-
-    // Prepend auth tag to ciphertext for storage
     const encryptedData = Buffer.concat([authTag, ciphertext]);
+
+    return {
+        encryptedData,
+        key: key.toString('base64'),
+        iv: iv.toString('base64')
+    };
+}
+
+export function encryptFile(fileBuffer, outputPath) {
+    const { encryptedData, key, iv } = encryptFileToBuffer(fileBuffer);
 
     // Write encrypted file
     fs.writeFileSync(outputPath, encryptedData);
 
-    return {
-        key: key.toString('base64'),
-        iv: iv.toString('base64')
-    };
+    return { key, iv };
 }
 
 /**
@@ -300,17 +320,23 @@ export function encryptFile(fileBuffer, outputPath) {
  * @param {string} ivBase64 - Base64-encoded IV
  * @returns {Buffer} Decrypted file data
  */
-export function decryptFile(filePath, keyBase64, ivBase64) {
+export function decryptFileBuffer(encryptedData, keyBase64, ivBase64) {
     const key = Buffer.from(keyBase64, 'base64');
     const iv = Buffer.from(ivBase64, 'base64');
 
-    const encryptedData = fs.readFileSync(filePath);
+    const data = Buffer.isBuffer(encryptedData)
+        ? encryptedData
+        : Buffer.from(encryptedData);
 
-    // Extract auth tag (first 16 bytes)
-    const authTag = encryptedData.slice(0, 16);
-    const ciphertext = encryptedData.slice(16);
+    const authTag = data.slice(0, 16);
+    const ciphertext = data.slice(16);
 
     return aesDecrypt(ciphertext, key, iv, authTag);
+}
+
+export function decryptFile(filePath, keyBase64, ivBase64) {
+    const encryptedData = fs.readFileSync(filePath);
+    return decryptFileBuffer(encryptedData, keyBase64, ivBase64);
 }
 
 /**

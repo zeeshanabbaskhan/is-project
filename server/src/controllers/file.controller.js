@@ -1,7 +1,6 @@
-import fs from 'fs';
-import path from 'path';
 import { File, User, ShareLink, AccessLog } from '../models/index.js';
-import { encryptFile, decryptFile, deleteEncryptedFile, sha256 } from '../utils/crypto.js';
+import { sha256 } from '../utils/crypto.js';
+import { storeEncryptedFile, readDecryptedFile, removeStoredFile, sensitiveFileFields } from '../utils/storage.js';
 
 /**
  * Upload encrypted file
@@ -26,19 +25,8 @@ export const uploadFile = async (req, res) => {
             });
         }
 
-        // Create user directory
-        const uploadDir = process.env.UPLOAD_PATH || './uploads';
-        const userDir = path.join(uploadDir, req.userId.toString());
-        if (!fs.existsSync(userDir)) {
-            fs.mkdirSync(userDir, { recursive: true });
-        }
-
-        // Generate unique filename
-        const uniqueName = `${Date.now()}_${Math.random().toString(36).substring(7)}.enc`;
-        const storagePath = path.join(userDir, uniqueName);
-
         // Encrypt and save file
-        const { key, iv } = encryptFile(req.file.buffer, storagePath);
+        const stored = storeEncryptedFile(req.file.buffer, req.userId);
 
         // Calculate hash of original file
         const hash = sha256(req.file.buffer);
@@ -50,11 +38,12 @@ export const uploadFile = async (req, res) => {
         const file = await File.create({
             name: name || req.file.originalname,
             originalName: req.file.originalname,
-            storagePath,
-            encryptionKey: key,
-            encryptionIV: iv,
+            storagePath: stored.storagePath,
+            encryptedData: stored.encryptedData,
+            encryptionKey: stored.encryptionKey,
+            encryptionIV: stored.encryptionIV,
             size: req.file.size,
-            encryptedSize: fs.statSync(storagePath).size,
+            encryptedSize: stored.encryptedSize,
             mimeType: req.file.mimetype,
             hash,
             category: fileCategory,
@@ -116,7 +105,7 @@ export const getFiles = async (req, res) => {
             .sort(sort)
             .skip((page - 1) * limit)
             .limit(parseInt(limit))
-            .select('-encryptionKey -encryptionIV -storagePath')
+            .select(sensitiveFileFields)
             .lean();
 
         const total = await File.countDocuments(query);
@@ -148,7 +137,7 @@ export const getFile = async (req, res) => {
         const file = await File.findById(req.params.id)
             .populate('owner', 'name email')
             .populate('sharedWith.user', 'name email')
-            .select('-encryptionKey -encryptionIV -storagePath');
+            .select(sensitiveFileFields);
 
         if (!file) {
             return res.status(404).json({
@@ -210,7 +199,8 @@ export const getFile = async (req, res) => {
  */
 export const previewFile = async (req, res) => {
     try {
-        const file = await File.findById(req.params.id);
+        const file = await File.findById(req.params.id)
+            .select('+encryptedData');
 
         if (!file) {
             return res.status(404).json({
@@ -228,7 +218,7 @@ export const previewFile = async (req, res) => {
         }
 
         // Decrypt file
-        const decryptedData = decryptFile(file.storagePath, file.encryptionKey, file.encryptionIV);
+        const decryptedData = readDecryptedFile(file);
 
         // Update last accessed
         file.lastAccessed = new Date();
@@ -253,7 +243,8 @@ export const previewFile = async (req, res) => {
  */
 export const downloadFile = async (req, res) => {
     try {
-        const file = await File.findById(req.params.id);
+        const file = await File.findById(req.params.id)
+            .select('+encryptedData');
 
         if (!file) {
             return res.status(404).json({
@@ -271,7 +262,7 @@ export const downloadFile = async (req, res) => {
         }
 
         // Decrypt file
-        const decryptedData = decryptFile(file.storagePath, file.encryptionKey, file.encryptionIV);
+        const decryptedData = readDecryptedFile(file);
 
         // Update stats
         file.downloadCount += 1;
@@ -298,7 +289,8 @@ export const downloadFile = async (req, res) => {
 export const updateFile = async (req, res) => {
     try {
         const { name, description, tags, category } = req.body;
-        const file = await File.findById(req.params.id);
+        const file = await File.findById(req.params.id)
+            .select('+encryptedData');
 
         if (!file) {
             return res.status(404).json({
@@ -341,7 +333,8 @@ export const updateFile = async (req, res) => {
  */
 export const deleteFile = async (req, res) => {
     try {
-        const file = await File.findById(req.params.id);
+        const file = await File.findById(req.params.id)
+            .select('+encryptedData');
 
         if (!file) {
             return res.status(404).json({
@@ -358,8 +351,8 @@ export const deleteFile = async (req, res) => {
             });
         }
 
-        // Delete encrypted file from disk
-        deleteEncryptedFile(file.storagePath);
+        // Delete encrypted file from storage
+        removeStoredFile(file);
 
         // Update user storage
         const user = await User.findById(req.userId);
@@ -398,7 +391,7 @@ export const getSharedWithMe = async (req, res) => {
             isDeleted: false
         })
             .populate('owner', 'name email')
-            .select('-encryptionKey -encryptionIV -storagePath')
+            .select(sensitiveFileFields)
             .sort({ createdAt: -1 })
             .lean();
 

@@ -1,5 +1,5 @@
 import { ShareLink, File, User } from '../models/index.js';
-import { decryptFile } from '../utils/crypto.js';
+import { readDecryptedFile } from '../utils/storage.js';
 
 /**
  * Create a share link for a file
@@ -308,7 +308,7 @@ export const downloadSharedFile = async (req, res) => {
         const { password, sessionToken } = req.query;
 
         const shareLink = await ShareLink.findOne({ token })
-            .populate('file')
+            .populate({ path: 'file', select: '+encryptedData' })
             .populate('allowedUsers', '_id');
 
         if (!shareLink) {
@@ -405,7 +405,7 @@ export const downloadSharedFile = async (req, res) => {
 
         // Decrypt and send file
         const file = shareLink.file;
-        const decryptedData = decryptFile(file.storagePath, file.encryptionKey, file.encryptionIV);
+        const decryptedData = readDecryptedFile(file);
 
         // Log download and increment counts
         await shareLink.logAccess(
@@ -445,7 +445,7 @@ export const previewSharedFile = async (req, res) => {
         const { password, sessionToken } = req.query;
 
         const shareLink = await ShareLink.findOne({ token })
-            .populate('file')
+            .populate({ path: 'file', select: '+encryptedData' })
             .populate('allowedUsers', '_id');
 
         if (!shareLink) {
@@ -510,7 +510,7 @@ export const previewSharedFile = async (req, res) => {
 
         // Decrypt and send file for preview (inline)
         const file = shareLink.file;
-        const decryptedData = decryptFile(file.storagePath, file.encryptionKey, file.encryptionIV);
+        const decryptedData = readDecryptedFile(file);
 
         res.setHeader('Content-Type', file.mimeType);
         res.setHeader('Content-Disposition', `inline; filename="${file.name}"`);

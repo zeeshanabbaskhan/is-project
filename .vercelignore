@@ -1,0 +1,7 @@
+node_modules
+server/uploads
+server/keys
+.git
+.env
+.env.*
+!.env.example
