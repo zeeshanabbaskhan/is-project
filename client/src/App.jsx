@@ -19,6 +19,7 @@ import { SecureNotePage } from './pages/SecureNotePage'
 import { SettingsPage } from './pages/SettingsPage'
 import { DeviceManagementPage } from './pages/DeviceManagementPage'
 import { HelpCenterPage } from './pages/HelpCenterPage'
+import { DocumentTitle } from './components/DocumentTitle'
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated } = useAuth()
@@ -42,6 +43,7 @@ function AppContent() {
 
   return (
     <>
+      <DocumentTitle />
       {isAuthenticated && <Navbar />}
       <Routes>
         <Route path="/" element={
