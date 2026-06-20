@@ -90,7 +90,7 @@ export const Dashboard = () => {
     }
 
     return (
-        <div className="min-h-screen bg-linear-to-br from-background via-background to-muted/20">
+        <div className="min-h-screen bg-muted/40">
             <div className="container mx-auto p-6 space-y-8">
                 {/* Welcome Header */}
                 <div className="flex items-center justify-between">
@@ -115,7 +115,7 @@ export const Dashboard = () => {
                 </div>
 
                 {/* Security Tips Banner */}
-                <Card className="bg-linear-to-r from-primary/10 via-primary/5 to-blue-500/10 border-primary/20 overflow-hidden relative">
+                <Card className="bg-linear-to-r from-primary/10 via-primary/5 to-blue-500/10 border-primary/20 overflow-hidden relative shadow-md shadow-primary/10">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl"></div>
                     <CardContent className="p-5 flex items-center justify-between relative">
                         <div className="flex items-center gap-4">
@@ -137,7 +137,7 @@ export const Dashboard = () => {
 
                 {/* Stats Cards */}
                 <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <Card className="group hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-1">
+                    <Card className="group shadow-md shadow-black/5 hover:shadow-lg hover:shadow-black/10 transition-all duration-300 hover:-translate-y-1">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium text-muted-foreground">Total Files</CardTitle>
                             <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -156,7 +156,7 @@ export const Dashboard = () => {
                         </CardContent>
                     </Card>
 
-                    <Card className="group hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-1">
+                    <Card className="group shadow-md shadow-black/5 hover:shadow-lg hover:shadow-black/10 transition-all duration-300 hover:-translate-y-1">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium text-muted-foreground">Storage Used</CardTitle>
                             <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -177,7 +177,7 @@ export const Dashboard = () => {
                         </CardContent>
                     </Card>
 
-                    <Card className="group hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-1">
+                    <Card className="group shadow-md shadow-black/5 hover:shadow-lg hover:shadow-black/10 transition-all duration-300 hover:-translate-y-1">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium text-muted-foreground">Shared Links</CardTitle>
                             <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -191,7 +191,7 @@ export const Dashboard = () => {
                     </Card>
 
                     <Link to="/inbox">
-                        <Card className="group hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-1 cursor-pointer h-full">
+                        <Card className="group shadow-md shadow-black/5 hover:shadow-lg hover:shadow-black/10 transition-all duration-300 hover:-translate-y-1 cursor-pointer h-full">
                             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                 <CardTitle className="text-sm font-medium text-muted-foreground">Inbox</CardTitle>
                                 <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center group-hover:scale-110 transition-transform relative">
@@ -212,7 +212,7 @@ export const Dashboard = () => {
                 </div>
 
                 {/* Upload Area */}
-                <Card className="border-dashed border-2 hover:border-primary/50 hover:bg-primary/5 transition-all duration-300 group">
+                <Card className="border-dashed border-2 hover:border-primary/50 hover:bg-primary/5 transition-all duration-300 group shadow-md shadow-black/5">
                     <CardContent className="p-8">
                         <Link to="/upload">
                             <div className="flex flex-col items-center justify-center gap-4 cursor-pointer">
@@ -233,7 +233,7 @@ export const Dashboard = () => {
                 </Card>
 
                 {/* File Categories and Files */}
-                <Card className="overflow-hidden">
+                <Card className="overflow-hidden shadow-md shadow-black/5">
                     <CardHeader className="border-b bg-muted/30">
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                             <div>
