@@ -1,4 +1,4 @@
-# SecureTransfer
+# SecureTransfe
 
 A full-stack secure file transfer application with end-to-end RSA+AES hybrid encryption.
 
